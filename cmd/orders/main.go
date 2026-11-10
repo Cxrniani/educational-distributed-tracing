@@ -53,7 +53,7 @@ func main() {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 				rejected.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", "inventory_unreachable")))
-				logger.ErrorContext(ctx, "inventory unreachable", "error", err)
+				logger.ErrorContext(ctx, "Could not reach the inventory service, order was not created", "error", err)
 				server.WriteJSON(w, http.StatusBadGateway, map[string]string{"error": "inventory unreachable"})
 				return
 			}
@@ -63,16 +63,16 @@ func main() {
 				orderID := fmt.Sprintf("ord-%06d", rand.IntN(1000000))
 				span.SetAttributes(attribute.String("order.id", orderID))
 				created.Add(ctx, 1, metric.WithAttributes(attribute.String("item", item)))
-				logger.InfoContext(ctx, "order created", "order_id", orderID, "item", item, "qty", qty)
+				logger.InfoContext(ctx, "Stock reserved by inventory, order created successfully", "order_id", orderID, "item", item, "qty", qty)
 				server.WriteJSON(w, http.StatusCreated, map[string]any{"order_id": orderID, "item": item, "qty": qty})
 			case status >= 500:
 				span.SetStatus(codes.Error, "inventory failed")
 				rejected.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", "inventory_error")))
-				logger.ErrorContext(ctx, "inventory returned error", "status", status, "body", string(body))
+				logger.ErrorContext(ctx, "Inventory service failed while reserving stock, order was not created", "status", status, "body", string(body))
 				server.WriteJSON(w, http.StatusBadGateway, map[string]string{"error": "inventory failed"})
 			default:
 				rejected.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", "rejected_by_inventory")))
-				logger.WarnContext(ctx, "order rejected", "status", status, "item", item, "body", string(body))
+				logger.WarnContext(ctx, "Inventory refused the reservation, order was not created", "status", status, "item", item, "body", string(body))
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(status)
 				_, _ = w.Write(body)
