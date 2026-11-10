@@ -1,0 +1,56 @@
+x-otel: &otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://openobserve:5080/api/default
+  OTEL_EXPORTER_OTLP_HEADERS: Authorization=Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzcyMxMjM=
+
+services:
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    ports:
+      - "5080:5080"
+    environment:
+      ZO_ROOT_USER_EMAIL: root@example.com
+      ZO_ROOT_USER_PASSWORD: Complexpass#123
+      ZO_DATA_DIR: /data
+    volumes:
+      - openobserve-data:/data
+
+  inventory:
+    build:
+      context: .
+      args:
+        SERVICE: inventory
+    ports:
+      - "8082:8082"
+    environment:
+      <<: *otel
+    depends_on:
+      - openobserve
+
+  orders:
+    build:
+      context: .
+      args:
+        SERVICE: orders
+    ports:
+      - "8081:8081"
+    environment:
+      <<: *otel
+      INVENTORY_URL: http://inventory:8082
+    depends_on:
+      - inventory
+
+  gateway:
+    build:
+      context: .
+      args:
+        SERVICE: gateway
+    ports:
+      - "8080:8080"
+    environment:
+      <<: *otel
+      ORDERS_URL: http://orders:8081
+    depends_on:
+      - orders
+
+volumes:
+  openobserve-data:
