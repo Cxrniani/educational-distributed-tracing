@@ -40,17 +40,17 @@ func main() {
 			}
 
 			checkouts.Add(ctx, 1, metric.WithAttributes(attribute.String("item", item)))
-			logger.InfoContext(ctx, "checkout received", "item", item, "qty", qty)
+			logger.InfoContext(ctx, "Received checkout request, forwarding it to the orders service", "item", item, "qty", qty)
 
 			target := fmt.Sprintf("%s/orders?item=%s&qty=%d", ordersURL, url.QueryEscape(item), qty)
 			status, body, err := server.Get(ctx, client, target)
 			if err != nil {
-				logger.ErrorContext(ctx, "orders unreachable", "error", err)
+				logger.ErrorContext(ctx, "Could not reach the orders service, returning 502 to the client", "error", err)
 				server.WriteJSON(w, http.StatusBadGateway, map[string]string{"error": "orders unreachable"})
 				return
 			}
 
-			logger.InfoContext(ctx, "checkout finished", "status", status)
+			logger.InfoContext(ctx, "Checkout request completed, relaying the orders service response to the client", "status", status)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
 			_, _ = w.Write(body)
