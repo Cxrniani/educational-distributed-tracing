@@ -117,16 +117,16 @@ func main() {
 
 			switch outcome {
 			case outcomeError:
-				logger.ErrorContext(ctx, "reservation failed", "item", item, "error", err)
+				logger.ErrorContext(ctx, "Database error while reserving stock, request failed with 500", "item", item, "error", err)
 				server.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			case outcomeNotFound:
-				logger.WarnContext(ctx, "unknown item", "item", item)
+				logger.WarnContext(ctx, "Requested item does not exist in the catalog, request failed with 404", "item", item)
 				server.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "unknown item"})
 			case outcomeOutOfStock:
-				logger.WarnContext(ctx, "out of stock", "item", item, "requested", qty, "available", remaining)
+				logger.WarnContext(ctx, "Not enough units available to fulfil the reservation, request failed with 409", "item", item, "requested", qty, "available", remaining)
 				server.WriteJSON(w, http.StatusConflict, map[string]any{"error": "out of stock", "available": remaining})
 			default:
-				logger.InfoContext(ctx, "stock reserved", "item", item, "qty", qty, "remaining", remaining)
+				logger.InfoContext(ctx, "Stock reserved successfully and inventory level updated", "item", item, "qty", qty, "remaining", remaining)
 				server.WriteJSON(w, http.StatusOK, map[string]any{"item": item, "reserved": qty, "remaining": remaining})
 			}
 		})
