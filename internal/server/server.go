@@ -92,9 +92,9 @@ func Run(service, defaultPort string, register func(Mux, *slog.Logger)) {
 		close(drained)
 	}()
 
-	logger.Info("service listening", "service", service, "addr", srv.Addr)
+	logger.Info("Service started and accepting HTTP requests", "service", service, "addr", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Error("server failed", "error", err)
+		logger.Error("HTTP server stopped unexpectedly, shutting the service down", "error", err)
 		stop()
 	}
 	<-drained
