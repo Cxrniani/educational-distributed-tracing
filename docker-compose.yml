@@ -36,6 +36,7 @@ services:
     environment:
       <<: *otel
       INVENTORY_URL: http://inventory:8082
+      PAYMENT_DELAY_SECONDS: "0.2"
     depends_on:
       - inventory
 
