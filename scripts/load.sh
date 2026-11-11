@@ -4,7 +4,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 ROUNDS="${ROUNDS:-50}"
 ITEMS=(book book book notebook monitor cable fail ghost)
-SLOW_PAYMENT_SECONDS="${SLOW_PAYMENT_SECONDS:-5}"
+SLOW_PAYMENT_SECONDS="${SLOW_PAYMENT_SECONDS:-1}"
 
 for ((i = 1; i <= ROUNDS; i++)); do
   item="${ITEMS[RANDOM % ${#ITEMS[@]}]}"
