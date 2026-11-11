@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -13,9 +14,22 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Cxrniani/educational-distributed-tracing/internal/server"
 )
+
+func authorizePayment(ctx context.Context, tracer trace.Tracer, item string, qty int) {
+	_, span := tracer.Start(ctx, "payment.authorize", trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("peer.service", "payment-provider"),
+			attribute.String("payment.item", item),
+			attribute.Int("payment.qty", qty),
+		))
+	defer span.End()
+
+	time.Sleep(5 * time.Second)
+}
 
 func main() {
 	inventoryURL := server.Env("INVENTORY_URL", "http://localhost:8082")
@@ -60,10 +74,13 @@ func main() {
 
 			switch {
 			case status == http.StatusOK:
+				logger.InfoContext(ctx, "Stock reserved, requesting payment authorization from the external provider", "item", item, "qty", qty)
+				authorizePayment(ctx, tracer, item, qty)
+				logger.InfoContext(ctx, "External payment provider authorized the payment", "item", item, "qty", qty)
 				orderID := fmt.Sprintf("ord-%06d", rand.IntN(1000000))
 				span.SetAttributes(attribute.String("order.id", orderID))
 				created.Add(ctx, 1, metric.WithAttributes(attribute.String("item", item)))
-				logger.InfoContext(ctx, "Stock reserved by inventory, order created successfully", "order_id", orderID, "item", item, "qty", qty)
+				logger.InfoContext(ctx, "Payment authorized, order created successfully", "order_id", orderID, "item", item, "qty", qty)
 				server.WriteJSON(w, http.StatusCreated, map[string]any{"order_id": orderID, "item": item, "qty": qty})
 			case status >= 500:
 				span.SetStatus(codes.Error, "inventory failed")
