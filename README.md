@@ -53,6 +53,9 @@ curl "localhost:8080/checkout?item=book&qty=2"
 | `item=cable`              | 409       | Sem estoque, log de warning correlacionado ao trace  |
 | `item=ghost`              | 404       | Item inexistente                                     |
 | `item=fail`               | 502       | Erro no banco propagado: span com status de erro     |
+| `item=book&payment_delay=5` | 201 lento | Span `payment.authorize` de 5s (chamada externa lenta) |
+
+O atraso normal do payment vem da variável `PAYMENT_DELAY_SECONDS` do orders (padrão `0.2`). O parâmetro `payment_delay` (em segundos, de 0 a 10) sobrescreve esse valor em uma requisição.
 
 ## Onde olhar no OpenObserve
 
