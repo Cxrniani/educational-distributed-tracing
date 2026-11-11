@@ -19,21 +19,37 @@ import (
 	"github.com/Cxrniani/educational-distributed-tracing/internal/server"
 )
 
-func authorizePayment(ctx context.Context, tracer trace.Tracer, item string, qty int) {
+const maxPaymentDelaySeconds = 10
+
+func authorizePayment(ctx context.Context, tracer trace.Tracer, item string, qty int, delay time.Duration) {
 	_, span := tracer.Start(ctx, "payment.authorize", trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			attribute.String("peer.service", "payment-provider"),
 			attribute.String("payment.item", item),
 			attribute.Int("payment.qty", qty),
+			attribute.Float64("payment.delay_seconds", delay.Seconds()),
 		))
 	defer span.End()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(delay)
+}
+
+func envSeconds(key string, fallback float64) float64 {
+	value, err := strconv.ParseFloat(server.Env(key, ""), 64)
+	if err != nil || value < 0 {
+		return fallback
+	}
+	return value
+}
+
+func seconds(value float64) time.Duration {
+	return time.Duration(value * float64(time.Second))
 }
 
 func main() {
 	inventoryURL := server.Env("INVENTORY_URL", "http://localhost:8082")
 	client := server.HTTPClient()
+	defaultPaymentDelay := envSeconds("PAYMENT_DELAY_SECONDS", 0.2)
 
 	server.Run("orders", "8081", func(mux server.Mux, logger *slog.Logger) {
 		tracer := otel.Tracer("orders")
@@ -55,6 +71,16 @@ func main() {
 				server.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item or qty"})
 				return
 			}
+			paymentDelay := defaultPaymentDelay
+			if raw := r.URL.Query().Get("payment_delay"); raw != "" {
+				parsed, err := strconv.ParseFloat(raw, 64)
+				if err != nil || parsed < 0 || parsed > maxPaymentDelaySeconds {
+					rejected.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", "invalid_request")))
+					server.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "payment_delay must be between 0 and 10 seconds"})
+					return
+				}
+				paymentDelay = parsed
+			}
 			span.SetAttributes(attribute.String("item", item), attribute.Int("qty", qty))
 
 			_, validate := tracer.Start(ctx, "orders.validate")
@@ -75,8 +101,8 @@ func main() {
 			switch {
 			case status == http.StatusOK:
 				logger.InfoContext(ctx, "Stock reserved, requesting payment authorization from the external provider", "item", item, "qty", qty)
-				authorizePayment(ctx, tracer, item, qty)
-				logger.InfoContext(ctx, "External payment provider authorized the payment", "item", item, "qty", qty)
+				authorizePayment(ctx, tracer, item, qty, seconds(paymentDelay))
+				logger.InfoContext(ctx, "External payment provider authorized the payment", "item", item, "qty", qty, "delay_seconds", paymentDelay)
 				orderID := fmt.Sprintf("ord-%06d", rand.IntN(1000000))
 				span.SetAttributes(attribute.String("order.id", orderID))
 				created.Add(ctx, 1, metric.WithAttributes(attribute.String("item", item)))
