@@ -36,7 +36,7 @@ func Env(key, fallback string) string {
 func HTTPClient() *http.Client {
 	return &http.Client{
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
-		Timeout:   5 * time.Second,
+		Timeout:   15 * time.Second,
 	}
 }
 
