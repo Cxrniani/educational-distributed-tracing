@@ -43,6 +43,9 @@ func main() {
 			logger.InfoContext(ctx, "Received checkout request, forwarding it to the orders service", "item", item, "qty", qty)
 
 			target := fmt.Sprintf("%s/orders?item=%s&qty=%d", ordersURL, url.QueryEscape(item), qty)
+			if delay := r.URL.Query().Get("payment_delay"); delay != "" {
+				target += "&payment_delay=" + url.QueryEscape(delay)
+			}
 			status, body, err := server.Get(ctx, client, target)
 			if err != nil {
 				logger.ErrorContext(ctx, "Could not reach the orders service, returning 502 to the client", "error", err)
